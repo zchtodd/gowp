@@ -46,10 +46,13 @@ func handleProxy(p *Proxy, w http.ResponseWriter, r *http.Request) {
 var upgrader = websocket.Upgrader{}
 
 func main() {
-    var conn *websocket.Conn
+    p := &Proxy{}
 
-    proxyResponses := make(chan []byte)
+    WrapHandler("/", p, handleRoot)
+    WrapHandler("/register", p, handleRegister)
+    WrapHandler("/proxy", p, handleProxy)
 
+/*
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         buf := &bytes.Buffer{}
         r.Write(buf)
@@ -90,7 +93,7 @@ func main() {
 
             proxyResponses <- message
         }
-    })
+    })*/
 
     http.ListenAndServe(":8080", nil)
 }
