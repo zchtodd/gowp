@@ -1,6 +1,7 @@
 package main
 
 import (
+    "fmt"
     "log"
     "flag"
     "bufio"
@@ -11,14 +12,35 @@ import (
     "github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8080", "")
+func Register() string {
+   response, err := http.Get("http://corra.io:8080/register")
+   if err != nil {
+       log.Fatal(err)
+   }
 
-func startProxy(proxyPassURL *url.URL) {
-   proxyServerURL := url.URL{Scheme: "ws", Host: *addr, Path: "/proxy"}
+   body, err := ioutil.ReadAll(response.Body)
+
+   if err != nil {
+       log.Fatal(err)
+   }
+   response.Body.Close()
+
+   return string(body)
+}
+
+func StartProxy(proxyPassURL *url.URL) {
+   subdomain := Register()
+
+   log.Printf("Proxy subdomain registered: %s\n", subdomain)
+
+   proxyServerURL, err := url.Parse(fmt.Sprintf("ws://%s.corra.io:8080/proxy", subdomain))
+   if err != nil {
+       log.Fatal(err)
+   }
 
    c, _, err := websocket.DefaultDialer.Dial(proxyServerURL.String(), nil)
    if err != nil {
-       log.Fatal("dial", err)
+       log.Fatal(err)
    }
 
    defer c.Close()
@@ -73,5 +95,5 @@ func main() {
        log.Fatal(err)
    }
 
-   startProxy(proxyPassURL)
+   StartProxy(proxyPassURL)
 }

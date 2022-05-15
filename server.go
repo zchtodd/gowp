@@ -4,15 +4,12 @@ import (
     "log"
     "fmt"
     "bytes"
+    "strings"
     "net/http"
+    "github.com/gorilla/mux"
     "github.com/gorilla/websocket"
     "github.com/lithammer/shortuuid/v4"
 )
-
-type ProxyKey struct {
-    APIKey    string
-    Subdomain string
-}
 
 type ProxyValue struct {
     Conn    *websocket.Conn
@@ -20,80 +17,78 @@ type ProxyValue struct {
 }
 
 type Proxy struct {
-    Clients map[ProxyKey]ProxyValue
+    Clients map[string]*ProxyValue
 }
 
 type ProxyHandler func(*Proxy, http.ResponseWriter, *http.Request)
 
-func WrapHandler(path string, p *Proxy, handler ProxyHandler) {
-    http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+var upgrader = websocket.Upgrader{}
+
+func WrapHandler(p *Proxy, handler ProxyHandler) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
         handler(p, w, r)
-    })
+    }
 }
 
 func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
+    hostComponents := strings.Split(r.Host, ".")
+    subdomain := hostComponents[0]
 
-}
-
-func handleRegister(p *Proxy, w http.ResponseWriter, r *http.Request) {
-
-}
-
-func handleProxy(p *Proxy, w http.ResponseWriter, r *http.Request) {
-
-}
-
-var upgrader = websocket.Upgrader{}
-
-func main() {
-    p := &Proxy{}
-
-    WrapHandler("/", p, handleRoot)
-    WrapHandler("/register", p, handleRegister)
-    WrapHandler("/proxy", p, handleProxy)
-
-/*
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+    if proxyValue, ok := p.Clients[subdomain]; ok {
         buf := &bytes.Buffer{}
         r.Write(buf)
         
-        conn.WriteMessage(websocket.TextMessage, buf.Bytes())
+        proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
 
-        proxyResponse := <- proxyResponses
+        proxyResponse := <- proxyValue.Channel
         w.Write(proxyResponse)
-    })
+    }
+}
 
-    http.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
-        apiKey := r.Header.Get("x-corra-api-key")
-        subdomain := shortuuid.New()
+func handleRegister(p *Proxy, w http.ResponseWriter, r *http.Request) {
+    subdomain := shortuuid.New()
 
-        proxyKey := ProxyKey{APIKey: apiKey, Subdomain: subdomain}
+    p.Clients[subdomain] = &ProxyValue{Conn: nil, Channel: make(chan []byte)}
+    fmt.Fprintf(w, subdomain)
+}
 
-        fmt.Fprintf(w, subdomain)
-    })
+func handleProxy(p *Proxy, w http.ResponseWriter, r *http.Request) {
+    var err error
 
-    http.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
-        var err error
-        log.Printf("host: %s\n", r.Host)
+    hostComponents := strings.Split(r.Host, ".")
+    subdomain := hostComponents[0]
 
-        conn, err = upgrader.Upgrade(w, r, nil)
-        if err != nil {
-            log.Printf("err: %v\n", err)
-            return
-        }
+    conn, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Printf("err: %v\n", err)
+        return
+    }
 
-        defer conn.Close()
+    defer conn.Close()
 
+    if proxyValue, ok := p.Clients[subdomain]; ok {
+        proxyValue.Conn = conn
         for {
             _, message, err := conn.ReadMessage()
             if err != nil {
                 log.Printf("err: %v\n", err)
                 break
             }
-
-            proxyResponses <- message
+    
+            proxyValue.Channel <- message
         }
-    })*/
+    }
+}
 
-    http.ListenAndServe(":8080", nil)
+func main() {
+    proxy := &Proxy{Clients: make(map[string]*ProxyValue)}
+
+    r := mux.NewRouter()
+
+    r.HandleFunc("/register", WrapHandler(proxy, handleRegister)).Methods("GET")
+    r.HandleFunc("/proxy", WrapHandler(proxy, handleProxy)).Methods("GET")
+
+    r.PathPrefix("/").HandlerFunc(WrapHandler(proxy, handleRoot))
+
+    http.ListenAndServe(":8080", r)
 }
