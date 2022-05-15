@@ -88,6 +88,8 @@ func StartProxy(proxyHostURL *url.URL, proxyPassHost string) {
 
        u.Path = path.Join(u.Path, request.URL.String())
 
+       request.Header.Set("Accept-Encoding", "")
+
        request.RequestURI = ""
        request.URL = u
 

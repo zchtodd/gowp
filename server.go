@@ -51,6 +51,8 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
         proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
 
         proxyResponse := <- proxyValue.Channel
+
+        log.Printf("Proxy response: \n%s\n", proxyResponse)
         w.Write(proxyResponse)
     }
 }
