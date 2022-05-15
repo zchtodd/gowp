@@ -80,14 +80,11 @@ func StartProxy(proxyHostURL *url.URL, proxyPassHost string) {
        }
 
        hostAndPort := strings.Split(request.Host, ":")
-       u, err := url.Parse(proxyPassHost + ":" + hostAndPort[1])
+       u, err := url.Parse(path.Join(proxyPassHost + ":" + hostAndPort[1], request.URL.String()))
        if err != nil {
            log.Println(err)
            return
        }
-
-       log.Printf("raw req url: %s\n", request.URL.String())
-       u.Path = path.Join(u.Path, request.URL.String())
 
        request.Header.Set("Accept-Encoding", "")
 
