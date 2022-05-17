@@ -4,6 +4,7 @@ import (
     "log"
     "fmt"
     "bytes"
+    "time"
     "strings"
     "net/http"
     "encoding/json"
@@ -47,11 +48,20 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
         buf := &bytes.Buffer{}
         r.Write(buf)
         
-        log.Printf("Proxying request: %s\n", r.URL.String())
-        proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
+        startTime := time.Now()
 
+        log.Printf("Proxying request: %s\n", r.URL.String())
+
+        proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
         proxyResponse := <- proxyValue.Channel
+
+        log.Printf("Request from client took: %s\n", time.Since(startTime))
+
+        startTime = time.Now()
+
         w.Write(proxyResponse)
+
+        log.Printf("Writing response to client took: %s\n", time.Since(startTime))
     }
 }
 

@@ -5,6 +5,7 @@ import (
     "fmt"
     "log"
     "flag"
+    "time"
     "strings"
     "bytes"
     "encoding/json"
@@ -92,13 +93,16 @@ func StartProxy(proxyHostURL *url.URL, proxyPassHost string) {
        request.URL = u
 
        log.Printf("Sending proxy request: %s\n", u.String())
+       startTime := time.Now()
 
-       client := http.Client{}
+       client := http.Client{Timeout: time.Second * 2}
        response, err := client.Do(request)
        if err != nil {
            log.Println(err)
-           return
+           continue
        }
+
+       log.Printf("Proxy request finished, time elapsed: %s\n", time.Since(startTime))
 
        b, err := ioutil.ReadAll(response.Body)
        if err != nil {
