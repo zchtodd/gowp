@@ -23,6 +23,7 @@ type ProxyValue struct {
 }
 
 type Proxy struct {
+    Queued int
     Router  *mux.Router
     Clients map[string]*ProxyValue
     Ports   []string
@@ -48,20 +49,25 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
         buf := &bytes.Buffer{}
         r.Write(buf)
         
-        startTime := time.Now()
+        p.Queued += 1
 
-        log.Printf("Proxying request: %s\n", r.URL.String())
+        startTime := time.Now()
+        log.Printf("Proxying request: %s (%d queued)\n", r.URL.String(), p.Queued)
 
         proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
-        proxyResponse := <- proxyValue.Channel
 
-        log.Printf("Request from client took: %s\n", time.Since(startTime))
-
+        log.Printf("Writing request to websocket took: %s\n", time.Since(startTime))
         startTime = time.Now()
 
-        w.Write(proxyResponse)
+        select {
+            case proxyResponse := <- proxyValue.Channel:
+                w.Write(proxyResponse)
+                log.Printf("Response from proxy client took: %s\n", time.Since(startTime))
+            case <-time.After(time.Second * 30):
+                log.Printf("Timed out waiting for proxy client to respond: %s\n", r.URL.String())
+        }
 
-        log.Printf("Writing response to client took: %s\n", time.Since(startTime))
+        p.Queued -= 1
     }
 }
 
