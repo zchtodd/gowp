@@ -1,6 +1,7 @@
 package main
 
 import (
+    "io"
     "fmt"
     "log"
     "bytes"
@@ -8,6 +9,7 @@ import (
     "time"
     "strings"
     "net/http"
+    "compress/gzip"
     "encoding/json"
     "github.com/gorilla/websocket"
     "github.com/gorilla/mux"
@@ -87,7 +89,7 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
                     return
                 }
 
-                w.Write(proxyResponse)
+                w.Write(gunzipBuf.Bytes())
 
                 log.Printf("Done writing response to client: %s\n", time.Since(startTime))
             case <-time.After(time.Second * 30):

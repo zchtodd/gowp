@@ -1,6 +1,7 @@
 package main
 
 import (
+    "io"
     "log"
     "fmt"
     "bytes"
@@ -8,6 +9,7 @@ import (
     "strings"
     "net/http"
     "encoding/json"
+    "compress/gzip"
     "github.com/gorilla/mux"
     "github.com/gorilla/websocket"
     "github.com/lithammer/shortuuid/v4"
