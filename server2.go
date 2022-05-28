@@ -64,12 +64,32 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
             }
         }
 
+        startTime := time.Now()
         minConn.Queued = append(minConn.Queued, proxyChan)
         minConn.WSConn.WriteMessage(websocket.TextMessage, buf.Bytes())
+        log.Printf("Done writing request to proxy client: %s\n", time.Since(startTime))
 
         select {
             case proxyResponse := <- proxyChan:
+                startTime := time.Now()
+
+                gzipBuf := bytes.NewBuffer(proxyResponse)
+
+                var r io.Reader
+                r, err := gzip.NewReader(gzipBuf)
+                if err != nil {
+                    return
+                }
+
+                var gunzipBuf bytes.Buffer
+                _, err = gunzipBuf.ReadFrom(r)
+                if err != nil {
+                    return
+                }
+
                 w.Write(proxyResponse)
+
+                log.Printf("Done writing response to client: %s\n", time.Since(startTime))
             case <-time.After(time.Second * 30):
                 log.Printf("Timed out waiting for proxy client to respond: %s\n", r.URL.String())
         }

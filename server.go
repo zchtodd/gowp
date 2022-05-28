@@ -14,19 +14,23 @@ import (
 )
 
 type RegisterPayload struct {
-   Ports []string `json:"ports"`
+    Ports []string `json:"ports"`
 }
 
-type ProxyValue struct {
-    Conn    *websocket.Conn
-    Channel chan []byte
+type ProxyConnection struct {
+    Connection   *websocket.Conn
+    ResponseChan chan []byte
+}
+
+type Client struct {
+    Connections []chan []byte
 }
 
 type Proxy struct {
-    Queued int
-    Router  *mux.Router
-    Clients map[string]*ProxyValue
-    Ports   []string
+    Queued    int
+    Router    *mux.Router
+    Clients   map[string]*Client
+    Ports     []string
 }
 
 type ProxyHandler func(*Proxy, http.ResponseWriter, *http.Request)
@@ -39,6 +43,15 @@ func WrapHandler(p *Proxy, handler ProxyHandler) http.HandlerFunc {
     }
 }
 
+func (p *Proxy) WriteMessage(subdomain string, proxyResponse chan []byte, data []byte) {
+    //proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
+    if connections, ok := p.Clients[subdomain]; ok {
+        for _, connChan := range 
+    }
+}
+
+/* handleRoot accepts a request for a resource and proxies that request to
+** the proxy running on the remote client. */
 func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
     hostComponents := strings.Split(r.Host, ".")
     subdomain := hostComponents[0]
@@ -54,6 +67,12 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
         startTime := time.Now()
         log.Printf("Proxying request: %s (%d queued)\n", r.URL.String(), p.Queued)
 
+        proxyChan := make(chan []byte)
+        go p.WriteMessage(proxyChan, buf.Bytes())
+
+        proxyResponse := <- proxyChan
+
+        /*
         proxyValue.Conn.WriteMessage(websocket.TextMessage, buf.Bytes())
 
         log.Printf("Writing request to websocket took: %s\n", time.Since(startTime))
@@ -68,6 +87,7 @@ func handleRoot(p *Proxy, w http.ResponseWriter, r *http.Request) {
         }
 
         p.Queued -= 1
+        */
     }
 }
 
@@ -101,7 +121,6 @@ func handleRegister(p *Proxy, w http.ResponseWriter, r *http.Request) {
         }
     }
 
-    p.Clients[subdomain] = &ProxyValue{Conn: nil, Channel: make(chan []byte)}
     fmt.Fprintf(w, subdomain)
 }
 
@@ -119,22 +138,24 @@ func handleProxy(p *Proxy, w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    defer conn.Close()
-
-    if proxyValue, ok := p.Clients[subdomain]; ok {
-        proxyValue.Conn = conn
-        for {
-            _, message, err := conn.ReadMessage()
-            if err != nil {
-                log.Printf("err: %v\n", err)
-                break
-            }
-    
-            log.Printf("Writing proxy response to channel\n")
-            proxyValue.Channel <- message
-        }
+    var Client *client
+    if client, ok := p.Clients[subdomain]; !ok {
+        responseChan := make(chan []byte, 8)
+        
+        client = &Client{Connection: conn, }
     } else {
-        log.Printf("Subdomain not found: %s\n", subdomain)
+        client = p.Clients[subdomain]
+    }
+
+    for {
+        _, message, err := conn.ReadMessage()
+        if err != nil {
+            log.Printf("err: %v\n", err)
+            break
+        }
+
+        log.Printf("Writing proxy response to channel\n")
+        proxyValue.Channel <- message
     }
 }
 
